@@ -1,5 +1,5 @@
 {
-  "name": "behaviour-ai",
+  "name": "behaviour-radar",
   "version": "1.0.0",
   "description": "Tiny JavaScript library for behavioural pattern tracking and anomaly hints.",
   "main": "index.js",

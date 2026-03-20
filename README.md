@@ -2,10 +2,10 @@
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 [![Node.js](https://img.shields.io/badge/Node.js-18%2B-5FA04E?logo=node.js&logoColor=white)](https://nodejs.org)
-[![Zero dependencies](https://img.shields.io/badge/dependencies-0-0A7B83)](https://github.com/rogeroliveira84/behaviour-ai)
+[![Zero dependencies](https://img.shields.io/badge/dependencies-0-0A7B83)](https://github.com/rogeroliveira84/behaviour-radar)
 [![Tests](https://img.shields.io/badge/tests-node--test-1E293B)](https://nodejs.org/api/test.html)
-[![Behaviour analytics](https://img.shields.io/badge/focus-behaviour%20analytics-F97316)](https://github.com/rogeroliveira84/behaviour-ai)
-[![GitHub stars](https://img.shields.io/github/stars/rogeroliveira84/behaviour-ai)](https://github.com/rogeroliveira84/behaviour-ai)
+[![Behaviour analytics](https://img.shields.io/badge/focus-behaviour%20analytics-F97316)](https://github.com/rogeroliveira84/behaviour-radar)
+[![GitHub stars](https://img.shields.io/github/stars/rogeroliveira84/behaviour-radar)](https://github.com/rogeroliveira84/behaviour-radar)
 
 🧠 Behaviour Radar is a small JavaScript library that helps you understand repeated actions, user habits, and unusual behaviour from plain event data.
 
@@ -45,14 +45,14 @@ This version keeps that simplicity, but makes it much more useful in real projec
 ## 📦 Install
 
 ```bash
-npm install github:rogeroliveira84/behaviour-ai
+npm install github:rogeroliveira84/behaviour-radar
 ```
 
 Or clone it locally:
 
 ```bash
-git clone https://github.com/rogeroliveira84/behaviour-ai.git
-cd behaviour-ai
+git clone https://github.com/rogeroliveira84/behaviour-radar.git
+cd behaviour-radar
 npm test
 node examples/quick-start.js
 ```
@@ -60,7 +60,7 @@ node examples/quick-start.js
 ## 🚀 Quick start
 
 ```js
-const { BehaviourRadar } = require("behaviour-ai");
+const { BehaviourRadar } = require("behaviour-radar");
 
 const radar = new BehaviourRadar({
   actor: (event) => event.userId || event.deviceId || "anonymous"
