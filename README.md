@@ -7,26 +7,56 @@
 [![Behaviour analytics](https://img.shields.io/badge/focus-behaviour%20analytics-F97316)](https://github.com/rogeroliveira84/behaviour-ai)
 [![GitHub stars](https://img.shields.io/github/stars/rogeroliveira84/behaviour-ai)](https://github.com/rogeroliveira84/behaviour-ai)
 
-Behaviour Radar is a tiny JavaScript library for turning raw events into useful behavioural signals.
+Behaviour Radar is a tiny JavaScript library for turning raw events into clear behavioural signals.
 
-It helps you answer questions like:
+Think of it as the missing layer between plain event logs and heavyweight analytics platforms. You send in actions like `LOGIN`, `PURCHASE`, or `TRANSFER_FUNDS`, and it gives you a compact behavioural memory:
 
-- What behaviours are repeating the most?
-- What does a user or device usually do?
-- Which action sequences are becoming a routine?
-- Is this new event unusual compared to previous behaviour?
+- repeated patterns
+- per-user or per-device profiles
+- common routines
+- anomaly hints you can actually explain
 
-It is intentionally simple: no external dependencies, no training pipeline, and no infrastructure setup. Feed it events, then query patterns, profiles, routines, and anomaly signals.
+It is intentionally simple: no external dependencies, no training pipeline, and no infrastructure setup. Feed it events, then query patterns, profiles, routines, and anomaly signals in a few lines of code.
 
-## Why this version is better
+## Why it feels different
 
-The original project counted exact duplicate payloads. This version keeps that spirit, but makes it practical:
+The original project counted exact duplicate payloads. This version keeps that spirit, but turns it into something you can actually build on:
 
 - Stable event fingerprinting with configurable normalization
 - Per-actor profiles and action frequency summaries
 - Transition tracking to detect common routines
 - Simple anomaly scoring for rare or new behaviour
 - Portable Node.js package with tests and example usage
+
+## What you can answer with it
+
+- What does this user usually do next?
+- Which behaviours are becoming a habit?
+- What changed in this actor's pattern today?
+- Is this event familiar, rare, or suspicious?
+- Which sequences are most common across my system?
+
+## How it works
+
+```mermaid
+flowchart LR
+    A["Raw events"] --> B["Normalize payload"]
+    B --> C["Fingerprint pattern"]
+    C --> D["Update actor profile"]
+    D --> E["Track transitions"]
+    E --> F["Return insights"]
+
+    F --> G["Top patterns"]
+    F --> H["Actor routines"]
+    F --> I["Anomaly hints"]
+```
+
+## Perfect for
+
+- Product teams that want behavioural insight without adopting a full analytics stack
+- Fraud and risk flows that need quick, explainable anomaly hints
+- Internal tools that want to learn user habits from workflow events
+- Prototypes and AI agents that need behavioural memory in-process
 
 ## Install
 
@@ -43,7 +73,9 @@ npm test
 node examples/quick-start.js
 ```
 
-## Quick start
+## In 30 seconds
+
+You define how to identify the actor, send in events, and immediately query the behavioural model.
 
 ```js
 const { BehaviourRadar } = require("behaviour-ai");
@@ -94,6 +126,15 @@ console.log(
   }
 ]
 ```
+
+## Why teams tend to like it
+
+| Behaviour Radar | Traditional analytics setup |
+|----------|-----------------------------|
+| In-process and lightweight | Usually external and infrastructure-heavy |
+| Optimized for behavioural patterns | Optimized for dashboards and reporting |
+| Explainable anomaly reasons | Often opaque scoring or no anomaly layer |
+| Simple JavaScript API | Multiple services, schemas, and ETL steps |
 
 ## API
 
@@ -187,6 +228,17 @@ This is useful for guardrails, fraud hints, or nudging reviews.
 
 Returns a serializable view of the tracker state.
 
+## A realistic example
+
+Imagine an investment app tracking this sequence for `user-42`:
+
+1. `LOGIN`
+2. `VIEW_DASHBOARD`
+3. `BUY_ASSET`
+4. `LOGIN`
+
+After a few repetitions, Behaviour Radar starts recognizing that flow as familiar. If the next event suddenly becomes `TRANSFER_FUNDS` to a new destination, `detectAnomaly()` can flag it as unusual because the action, pattern, and transition are all new for that actor.
+
 ## Custom normalization
 
 If you want to ignore fields like timestamps, request ids, or noisy metadata, provide a normalizer:
@@ -212,6 +264,13 @@ const radar = new BehaviourRadar({
 - Internal tools: monitor how teams use workflows over time
 - Recommendations: identify the next most likely action
 - Habit tracking: measure streaks, routines, and deviations
+
+## Design philosophy
+
+- Keep the API small enough to understand in one sitting
+- Prefer explainable heuristics over magical black-box scoring
+- Make behavioural tracking useful before adding heavier ML layers
+- Work well as a library, not a platform
 
 ## Run the example
 
