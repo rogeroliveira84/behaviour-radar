@@ -1,5 +1,7 @@
 "use strict";
 
+const { MemoryAdapter } = require("./adapters/memory-adapter");
+
 function isPlainObject(value) {
   return Object.prototype.toString.call(value) === "[object Object]";
 }
@@ -41,10 +43,6 @@ function simpleHash(input) {
   return (hash >>> 0).toString(16).padStart(8, "0");
 }
 
-function clone(value) {
-  return value === undefined ? undefined : JSON.parse(JSON.stringify(value));
-}
-
 function toIsoDate(input) {
   const date = input ? new Date(input) : new Date();
 
@@ -55,58 +53,39 @@ function toIsoDate(input) {
   return date.toISOString();
 }
 
-function incrementMap(map, key) {
-  const next = (map.get(key) || 0) + 1;
-  map.set(key, next);
-  return next;
-}
-
 class BehaviourRadar {
   constructor(options = {}) {
     this.actorSelector = options.actor || (() => "global");
     this.normalizer = options.normalizer || ((event) => ({ action: event.action, payload: event.payload || {} }));
     this.sequenceLimit = options.sequenceLimit || 25;
     this.rarePatternThreshold = options.rarePatternThreshold ?? 1;
-
-    this.totalEvents = 0;
-    this.patterns = new Map();
-    this.actionCounts = new Map();
-    this.actorProfiles = new Map();
+    this.adapter =
+      options.adapter ||
+      new MemoryAdapter({
+        maxActors: options.maxActors,
+        maxPatterns: options.maxPatterns,
+        actorTtlMs: options.actorTtlMs,
+        patternTtlMs: options.patternTtlMs,
+        windowMs: options.windowMs
+      });
   }
 
   track(event) {
     const prepared = this.#prepareEvent(event);
-    const profile = this.#getOrCreateProfile(prepared.actorId);
+    this.adapter.prepareFor(prepared.timestamp);
+
+    const profile = this.adapter.getOrCreateActor(prepared.actorId, (actorId) => this.#createProfile(actorId));
     const previousAction = profile.lastAction;
-    const existingPattern = this.patterns.get(prepared.fingerprint);
+    const existingPattern = this.adapter.getPattern(prepared.fingerprint);
     const isNewActionForActor = !profile.actionCounts.has(prepared.action);
     const isNewPattern = !existingPattern;
     const isRarePattern = Boolean(existingPattern && existingPattern.count <= this.rarePatternThreshold);
     const isNewTransition = Boolean(previousAction && !profile.transitions.has(`${previousAction}->${prepared.action}`));
-    const currentActionCount = incrementMap(this.actionCounts, prepared.action);
-    const actorActionCount = incrementMap(profile.actionCounts, prepared.action);
+    const currentActionCount = this.adapter.incrementAction(prepared.action);
+    const actorActionCount = incrementProfileMap(profile.actionCounts, prepared.action);
 
-    this.totalEvents += 1;
-
-    if (existingPattern) {
-      existingPattern.count += 1;
-      existingPattern.lastSeenAt = prepared.timestamp;
-      existingPattern.lastActorId = prepared.actorId;
-    } else {
-      this.patterns.set(prepared.fingerprint, {
-        fingerprint: prepared.fingerprint,
-        action: prepared.action,
-        count: 1,
-        firstSeenAt: prepared.timestamp,
-        lastSeenAt: prepared.timestamp,
-        samplePayload: clone(prepared.payload),
-        actors: new Set([prepared.actorId]),
-        lastActorId: prepared.actorId
-      });
-    }
-
-    const storedPattern = this.patterns.get(prepared.fingerprint);
-    storedPattern.actors.add(prepared.actorId);
+    this.adapter.incrementTotalEvents();
+    const storedPattern = this.adapter.recordPattern(prepared);
 
     if (!profile.firstSeenAt) {
       profile.firstSeenAt = prepared.timestamp;
@@ -128,7 +107,7 @@ class BehaviourRadar {
 
     if (previousAction) {
       const transitionKey = `${previousAction}->${prepared.action}`;
-      incrementMap(profile.transitions, transitionKey);
+      incrementProfileMap(profile.transitions, transitionKey);
     }
 
     const anomaly = this.#scoreFlags({
@@ -160,9 +139,11 @@ class BehaviourRadar {
 
   detectAnomaly(event) {
     const prepared = this.#prepareEvent(event);
-    const profile = this.actorProfiles.get(prepared.actorId) || this.#createProfile(prepared.actorId);
+    this.adapter.prepareFor(prepared.timestamp);
+
+    const profile = this.adapter.getActor(prepared.actorId) || this.#createProfile(prepared.actorId);
     const previousAction = profile.lastAction;
-    const existingPattern = this.patterns.get(prepared.fingerprint);
+    const existingPattern = this.adapter.getPattern(prepared.fingerprint);
 
     return this.#scoreFlags({
       isNewActionForActor: !profile.actionCounts.has(prepared.action),
@@ -173,26 +154,11 @@ class BehaviourRadar {
   }
 
   getTopPatterns(options = {}) {
-    const limit = options.limit || 5;
-    const action = options.action;
-
-    return Array.from(this.patterns.values())
-      .filter((pattern) => !action || pattern.action === action)
-      .sort((left, right) => right.count - left.count || left.action.localeCompare(right.action))
-      .slice(0, limit)
-      .map((pattern) => ({
-        fingerprint: pattern.fingerprint,
-        action: pattern.action,
-        count: pattern.count,
-        actors: pattern.actors.size,
-        firstSeenAt: pattern.firstSeenAt,
-        lastSeenAt: pattern.lastSeenAt,
-        samplePayload: clone(pattern.samplePayload)
-      }));
+    return this.adapter.getTopPatterns(options);
   }
 
   getActorProfile(actorId) {
-    const profile = this.actorProfiles.get(actorId);
+    const profile = this.adapter.getActor(actorId);
 
     if (!profile) {
       return null;
@@ -219,7 +185,7 @@ class BehaviourRadar {
   }
 
   findRoutines(actorId, options = {}) {
-    const profile = this.actorProfiles.get(actorId);
+    const profile = this.adapter.getActor(actorId);
 
     if (!profile) {
       return [];
@@ -240,13 +206,27 @@ class BehaviourRadar {
 
   snapshot() {
     return {
-      totalEvents: this.totalEvents,
-      topPatterns: this.getTopPatterns({ limit: this.patterns.size || 5 }),
+      totalEvents: this.adapter.totalEvents,
+      storage: this.adapter.getStats(),
+      topPatterns: this.getTopPatterns({ limit: this.adapter.patterns.size || 5 }),
       actions: Object.fromEntries(
-        Array.from(this.actionCounts.entries()).sort((left, right) => right[1] - left[1] || left[0].localeCompare(right[0]))
+        Array.from(this.adapter.actionCounts.entries()).sort(
+          (left, right) => right[1] - left[1] || left[0].localeCompare(right[0])
+        )
       ),
-      actors: Array.from(this.actorProfiles.keys()).sort().map((actorId) => this.getActorProfile(actorId))
+      actors: Array.from(this.adapter.actorProfiles.keys())
+        .sort()
+        .map((actorId) => this.getActorProfile(actorId))
     };
+  }
+
+  getStats() {
+    return this.adapter.getStats();
+  }
+
+  trim(referenceTimestamp = new Date().toISOString()) {
+    this.adapter.prepareFor(toIsoDate(referenceTimestamp));
+    return this.getStats();
   }
 
   #prepareEvent(event) {
@@ -277,18 +257,6 @@ class BehaviourRadar {
       timestamp,
       fingerprint
     };
-  }
-
-  #getOrCreateProfile(actorId) {
-    const existing = this.actorProfiles.get(actorId);
-
-    if (existing) {
-      return existing;
-    }
-
-    const profile = this.#createProfile(actorId);
-    this.actorProfiles.set(actorId, profile);
-    return profile;
   }
 
   #createProfile(actorId) {
@@ -342,6 +310,13 @@ class BehaviourRadar {
 
 module.exports = {
   BehaviourRadar,
+  MemoryAdapter,
   stableStringify,
   simpleHash
 };
+
+function incrementProfileMap(map, key) {
+  const next = (map.get(key) || 0) + 1;
+  map.set(key, next);
+  return next;
+}

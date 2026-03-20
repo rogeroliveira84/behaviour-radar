@@ -30,6 +30,8 @@ This version keeps that simplicity, but makes it much more useful in real projec
 - ✅ Per-user and per-device profiles
 - ✅ Action-to-action routine tracking
 - ✅ Simple anomaly scoring with human-readable reasons
+- ✅ Configurable scaling limits per instance
+- ✅ Optional adapter-based storage design
 - ✅ Small API and zero dependencies
 - ✅ Tests and example usage included
 
@@ -56,6 +58,18 @@ cd behaviour-radar
 npm test
 node examples/quick-start.js
 ```
+
+## ⚡ Scale it without making it complicated
+
+This version adds bounded-memory controls directly on the tracker instance, so you can keep it fast even with large streams:
+
+- `maxActors`: keep actor profile memory bounded
+- `maxPatterns`: keep retained pattern memory bounded
+- `actorTtlMs`: expire inactive actor profiles
+- `patternTtlMs`: expire old patterns
+- `windowMs`: keep only recent retained state
+
+These are global for that `BehaviourRadar` instance, which keeps the mental model simple.
 
 ## 🚀 Quick start
 
@@ -94,6 +108,29 @@ console.log(
     payload: { amount: 50000, destination: "new-wallet" }
   })
 );
+```
+
+## 🏎️ Scalable config example
+
+```js
+const { BehaviourRadar } = require("behaviour-radar");
+
+const radar = new BehaviourRadar({
+  actor: (event) => event.userId,
+  maxActors: 10000,
+  maxPatterns: 50000,
+  actorTtlMs: 1000 * 60 * 60 * 24,
+  patternTtlMs: 1000 * 60 * 60 * 24,
+  windowMs: 1000 * 60 * 60 * 24 * 7
+});
+
+console.log(radar.getStats());
+```
+
+You can also run:
+
+```bash
+node examples/scalable-config.js
 ```
 
 ## 🧩 What you get back
@@ -173,6 +210,12 @@ Options:
 - `normalizer(event)`: transform the event before fingerprinting.
 - `sequenceLimit`: number of recent events kept per actor. Default `25`.
 - `rarePatternThreshold`: patterns at or below this count are considered rare. Default `1`.
+- `maxActors`: maximum retained actor profiles for this instance.
+- `maxPatterns`: maximum retained patterns for this instance.
+- `actorTtlMs`: remove inactive actor profiles after this time.
+- `patternTtlMs`: remove inactive patterns after this time.
+- `windowMs`: keep only recent retained state for this instance.
+- `adapter`: plug in a storage adapter. By default, Behaviour Radar uses `MemoryAdapter`.
 
 ### `track(event)`
 
@@ -220,6 +263,36 @@ Score an event without storing it.
 ### `snapshot()`
 
 Get a serializable snapshot of the whole tracker state.
+
+### `getStats()`
+
+Get storage stats for the current instance:
+
+- adapter name
+- total ingested events
+- retained actors
+- retained patterns
+- active limits
+
+### `trim(referenceTimestamp?)`
+
+Force retention cleanup manually.
+
+### `MemoryAdapter`
+
+The default adapter is in-memory and optimized for simplicity and speed.
+
+```js
+const { BehaviourRadar, MemoryAdapter } = require("behaviour-radar");
+
+const radar = new BehaviourRadar({
+  actor: (event) => event.userId,
+  adapter: new MemoryAdapter({
+    maxActors: 5000,
+    maxPatterns: 20000
+  })
+});
+```
 
 ## 🧼 Custom normalization
 
@@ -271,12 +344,17 @@ npm test
 
 ## 🗺️ Roadmap ideas
 
-- Time windows and recency weighting
+- Redis adapter
+- SQLite adapter
 - Session detection
-- Persistence adapters for Redis, SQLite, or Postgres
+- Recency weighting
 - Actor segmentation
 - Live streaming ingestion
 
 ## 📄 License
 
 MIT
+
+## 👤 Author
+
+Created by Roger Oliveira.

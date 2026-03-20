@@ -17,5 +17,6 @@
   "engines": {
     "node": ">=18"
   },
+  "author": "Roger Oliveira",
   "license": "MIT"
 }
