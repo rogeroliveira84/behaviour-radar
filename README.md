@@ -280,3 +280,7 @@ npm test
 ## 📄 License
 
 MIT
+
+## 👤 Author
+
+Created by Roger Oliveira.
