@@ -294,6 +294,145 @@ const radar = new BehaviourRadar({
 });
 ```
 
+### `adapter` contract
+
+If you want to build your own adapter, it needs to expose the same small interface that `BehaviourRadar` uses internally.
+
+At a minimum, your adapter should provide:
+
+```js
+class CustomAdapter {
+  constructor() {
+    this.totalEvents = 0;
+    this.actionCounts = new Map();
+    this.actorProfiles = new Map();
+    this.patterns = new Map();
+  }
+
+  prepareFor(timestamp) {
+    // Optional cleanup hook called before reads/writes for a given event time.
+  }
+
+  incrementTotalEvents() {
+    this.totalEvents += 1;
+    return this.totalEvents;
+  }
+
+  incrementAction(action) {
+    const next = (this.actionCounts.get(action) || 0) + 1;
+    this.actionCounts.set(action, next);
+    return next;
+  }
+
+  getActor(actorId) {
+    return this.actorProfiles.get(actorId) || null;
+  }
+
+  getOrCreateActor(actorId, createProfile) {
+    let actor = this.actorProfiles.get(actorId);
+
+    if (!actor) {
+      actor = createProfile(actorId);
+      this.actorProfiles.set(actorId, actor);
+    }
+
+    return actor;
+  }
+
+  getPattern(fingerprint) {
+    return this.patterns.get(fingerprint) || null;
+  }
+
+  recordPattern(prepared) {
+    let pattern = this.patterns.get(prepared.fingerprint);
+
+    if (!pattern) {
+      pattern = {
+        fingerprint: prepared.fingerprint,
+        action: prepared.action,
+        count: 0,
+        firstSeenAt: prepared.timestamp,
+        lastSeenAt: prepared.timestamp,
+        samplePayload: prepared.payload,
+        actors: new Set(),
+        lastActorId: prepared.actorId
+      };
+      this.patterns.set(prepared.fingerprint, pattern);
+    }
+
+    pattern.count += 1;
+    pattern.lastSeenAt = prepared.timestamp;
+    pattern.lastActorId = prepared.actorId;
+    pattern.actors.add(prepared.actorId);
+
+    return pattern;
+  }
+
+  getTopPatterns(options = {}) {
+    const limit = options.limit || 5;
+    const action = options.action;
+
+    return Array.from(this.patterns.values())
+      .filter((pattern) => !action || pattern.action === action)
+      .sort((left, right) => right.count - left.count)
+      .slice(0, limit)
+      .map((pattern) => ({
+        fingerprint: pattern.fingerprint,
+        action: pattern.action,
+        count: pattern.count,
+        actors: pattern.actors.size,
+        firstSeenAt: pattern.firstSeenAt,
+        lastSeenAt: pattern.lastSeenAt,
+        samplePayload: pattern.samplePayload
+      }));
+  }
+
+  getStats() {
+    return {
+      adapter: "custom",
+      totalEvents: this.totalEvents,
+      retainedActors: this.actorProfiles.size,
+      retainedPatterns: this.patterns.size,
+      limits: {}
+    };
+  }
+}
+```
+
+The `prepared` object passed into `recordPattern()` looks like this:
+
+```js
+{
+  action: "LOGIN",
+  payload: { method: "password" },
+  actorId: "user-42",
+  timestamp: "2026-03-20T05:10:00.000Z",
+  fingerprint: "98b0df32"
+}
+```
+
+The actor profile returned by `getActor()` or `getOrCreateActor()` should look like this:
+
+```js
+{
+  actorId: "user-42",
+  totalEvents: 0,
+  firstSeenAt: null,
+  lastSeenAt: null,
+  lastAction: null,
+  actionCounts: new Map(),
+  transitions: new Map(),
+  history: []
+}
+```
+
+Notes:
+
+- `actionCounts`, `actorProfiles`, and `patterns` are read by `snapshot()`, so they should be present on the adapter.
+- `actors` inside a pattern is expected to behave like a `Set`.
+- `history` is expected to be an array of `{ timestamp, action, fingerprint }`.
+- If you use Redis, SQLite, or another external store, the easiest approach is often to keep this same contract and adapt persistence behind it.
+
 ## 🧼 Custom normalization
 
 If you want to ignore noisy fields like request ids or timestamps, use a custom normalizer:
