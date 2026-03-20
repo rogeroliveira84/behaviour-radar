@@ -1,0 +1,21 @@
+{
+  "name": "behaviour-ai",
+  "version": "1.0.0",
+  "description": "Tiny JavaScript library for behavioural pattern tracking and anomaly hints.",
+  "main": "index.js",
+  "keywords": [
+    "behaviour",
+    "behavior",
+    "analytics",
+    "patterns",
+    "anomaly-detection",
+    "events"
+  ],
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT"
+}
